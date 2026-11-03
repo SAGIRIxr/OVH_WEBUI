@@ -1,6 +1,6 @@
 # OVH_WEBUI — 使用 Docker Hub 预构建单镜像（前端已嵌入，一个容器一个端口）
 #
-#   1. 把下面的 YOUR_DOCKERHUB_USER 换成你的 Docker Hub 用户名
+#   1. 想固定版本就把 :latest 换成 :0.5.0 这类版本号（版本列表见 GitHub Releases）
 #   2. 同目录建 .env，写一行 API_SECRET_KEY=长随机串
 #   3. docker compose -f docker-compose.hub.yml up -d
 #   更新: docker compose -f docker-compose.hub.yml pull && docker compose -f docker-compose.hub.yml up -d
@@ -11,7 +11,7 @@
 
 services:
   ovh-webui:
-    image: YOUR_DOCKERHUB_USER/ovh-webui:latest
+    image: sagirixr/ovh-webui:latest
     container_name: ovh-webui
     restart: unless-stopped
     env_file:

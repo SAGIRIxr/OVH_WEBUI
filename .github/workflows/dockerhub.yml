@@ -1,26 +1,48 @@
 name: Docker Hub
 
-# main 每次推送 → :latest + :sha-xxxxxxx
-# 打 v* 标签   → 再加 :0.4.6 这类版本号标签
+# 每次推送 main 自动发一个新版本，不用手动打标签：
+#   版本号 = 已有最大的 vX.Y.Z 标签的补丁号 +1；还没有标签时用 VERSION 文件里的值。
+#   想升大/小版本（比如 0.5.x → 0.6.0），把 VERSION 改成 0.6.0 推上来即可，之后从它往上加。
+# 镜像标签：:latest、:0.5.3（每个版本一个，可回滚）、:0.5（该小版本里最新的）。
+# 构建成功后在 GitHub 上建 v0.5.3 标签和 Release，应用内「检查更新」读的就是它。
 on:
   push:
     branches: [main]
-    tags: ['v*']
+    paths-ignore: ['**.md', 'docs/**']
   workflow_dispatch:
 
+permissions:
+  contents: write
+
+# 版本号按顺序递增，排队而不是取消，免得两次推送算出同一个号
 concurrency:
-  group: dockerhub-${{ github.ref }}
-  cancel-in-progress: true
+  group: dockerhub
+  cancel-in-progress: false
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0 # 要读全部标签来算下一个版本号
 
-      - name: Read VERSION
+      - name: Compute version
         id: ver
-        run: echo "version=$(tr -d '[:space:]' < VERSION)" >> "$GITHUB_OUTPUT"
+        run: |
+          base=$(tr -d '[:space:]' < VERSION)
+          latest=$(git tag -l 'v[0-9]*.[0-9]*.[0-9]*' | sed 's/^v//' | sort -V | tail -1)
+          if [ -z "$latest" ]; then
+            version=$base
+          elif [ "$base" != "$latest" ] && [ "$(printf '%s\n%s\n' "$latest" "$base" | sort -V | tail -1)" = "$base" ]; then
+            version=$base # VERSION 被手动调高了
+          else
+            IFS=. read -r major minor patch <<< "$latest"
+            version="$major.$minor.$((patch + 1))"
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "minor=${version%.*}" >> "$GITHUB_OUTPUT"
+          echo "版本号: $version" >> "$GITHUB_STEP_SUMMARY"
 
       - uses: docker/setup-buildx-action@v4
 
@@ -34,9 +56,9 @@ jobs:
         with:
           images: ${{ secrets.DOCKERHUB_USERNAME }}/ovh-webui
           tags: |
-            type=raw,value=latest,enable={{is_default_branch}}
-            type=sha,prefix=sha-
-            type=raw,value=${{ steps.ver.outputs.version }},enable=${{ startsWith(github.ref, 'refs/tags/v') }}
+            type=raw,value=latest
+            type=raw,value=${{ steps.ver.outputs.version }}
+            type=raw,value=${{ steps.ver.outputs.minor }}
 
       - uses: docker/build-push-action@v7
         with:
@@ -44,7 +66,18 @@ jobs:
           file: Dockerfile
           platforms: linux/amd64,linux/arm64
           push: true
+          build-args: VERSION=${{ steps.ver.outputs.version }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      # 放在最后：构建失败就不会留下没有镜像的版本号
+      - name: Tag and release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.ver.outputs.version }}
+          IMAGE: ${{ secrets.DOCKERHUB_USERNAME }}/ovh-webui
+        run: |
+          gh release create "v$VERSION" --target "$GITHUB_SHA" --title "v$VERSION" --latest \
+            --notes "docker pull $IMAGE:$VERSION" --generate-notes

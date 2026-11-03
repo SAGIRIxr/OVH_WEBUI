@@ -32,8 +32,10 @@ COPY --from=webbuild /app/dist ./web
 
 ARG TARGETOS
 ARG TARGETARCH
+# CI 按标签算好版本号传进来；本地构建没传时退回 backend/VERSION
+ARG VERSION
 # 版本号注入路径要和 handlers.Version 一致，否则界面和更新检查拿到的是 "dev"
-RUN VERSION="$(cat VERSION)" && \
+RUN VERSION="${VERSION:-$(cat VERSION)}" && \
     CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} \
     go build -tags ui -trimpath \
       -ldflags "-s -w -X github.com/ovh-webui/server/internal/handlers.Version=${VERSION}" \
