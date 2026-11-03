@@ -1,0 +1,35 @@
+# OVH_WEBUI — 使用 Docker Hub 预构建单镜像（前端已嵌入，一个容器一个端口）
+#
+#   1. 把下面的 YOUR_DOCKERHUB_USER 换成你的 Docker Hub 用户名
+#   2. 同目录建 .env，写一行 API_SECRET_KEY=长随机串
+#   3. docker compose -f docker-compose.hub.yml up -d
+#   更新: docker compose -f docker-compose.hub.yml pull && docker compose -f docker-compose.hub.yml up -d
+#
+# 数据库、缓存、日志、自动生成的数据库密钥都在命名卷 ovh_webui_data 里。
+# 用命名卷而不是 ./data：容器以非 root 用户运行，宿主机 bind mount 进来的目录写不进去。
+# 备份: docker run --rm -v ovh_webui_data:/data -v "$PWD":/b alpine tar czf /b/ovh-data.tgz -C /data .
+
+services:
+  ovh-webui:
+    image: YOUR_DOCKERHUB_USER/ovh-webui:latest
+    container_name: ovh-webui
+    restart: unless-stopped
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      API_SECRET_KEY: ${API_SECRET_KEY:?在 .env 里设置 API_SECRET_KEY}
+      TZ: ${TZ:-Asia/Shanghai}
+    volumes:
+      - ovh_webui_data:/data
+    ports:
+      - "${PORT:-19998}:19998"
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "5"
+
+volumes:
+  ovh_webui_data:
+    name: ovh_webui_data
