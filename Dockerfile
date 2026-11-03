@@ -54,11 +54,11 @@ RUN chmod +x /app/ovh-webui /app/docker-entrypoint.sh \
 # OVH_ENV_FILE 指到卷上：没给 OVH_DB_KEY 时自动生成的数据库密钥写在这里，
 # 容器重建也不会丢（丢了已存的 OVH 凭据就解不开了）。
 # OVH_IN_CONTAINER=1 停用程序内自更新，容器靠拉新镜像更新。
+# ENABLE_API_KEY_AUTH 不在这里写：未设置即开启鉴权，写进 ENV 会触发 buildkit 的 SecretsUsedInArgOrEnv 误报。
 ENV PORT=19998 \
     LISTEN_HOST=0.0.0.0 \
     DATA_DIR=/data \
     GIN_MODE=release \
-    ENABLE_API_KEY_AUTH=true \
     TZ=Asia/Shanghai \
     OVH_ENV_FILE=/data/.env \
     OVH_IN_CONTAINER=1
