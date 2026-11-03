@@ -81,6 +81,10 @@ func (db *DB) migrate() error {
 	if err := db.addColumnIfMissing("queue", "coupon", "TEXT NOT NULL DEFAULT ''"); err != nil {
 		return err
 	}
+	// fqn:手填的整套硬件组合;ListQueue 是 SELECT * 严格映射,列和结构体字段同一次上线
+	if err := db.addColumnIfMissing("queue", "fqn", "TEXT NOT NULL DEFAULT ''"); err != nil {
+		return err
+	}
 	if err := db.addColumnIfMissing("history", "coupon_warning", "TEXT NOT NULL DEFAULT ''"); err != nil {
 		return err
 	}

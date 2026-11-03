@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 import { AccountSelect } from "@/components/common/AccountSelect";
 import { PlanCodeCombobox } from "@/components/common/PlanCodeCombobox";
 import { OptionGroupSection } from "@/components/common/OptionGroupSection";
+import { ManualConfigSection, splitManualOptions } from "@/components/common/ManualConfigSection";
 import { StatusDot } from "@/components/common/StatusDot";
 import { Chip } from "@/components/common/Chip";
 import { groupOptions, type OptionGroupKey } from "@/lib/option-groups";
@@ -82,6 +83,9 @@ export function QuickOrderDialog({ open, onOpenChange, initialPlanCode }: QuickO
   const [picked, setPicked] = useState<Partial<Record<OptionGroupKey, string>>>({});
   const [autoPay, setAutoPay] = useState(false);
   const [coupon, setCoupon] = useState("");
+  const [manualOpen, setManualOpen] = useState(false);
+  const [manualFqn, setManualFqn] = useState("");
+  const [manualOptions, setManualOptions] = useState("");
 
   const servers = serversQ.data || [];
   const server = useMemo(
@@ -122,10 +126,18 @@ export function QuickOrderDialog({ open, onOpenChange, initialPlanCode }: QuickO
     [picked]
   );
 
+  // 目录里没有的型号只能手填;目录里有的机型展开手动区并填了 OPTIONS 时覆盖 chip 选择
+  const manualActive = manualOpen || (!server && planCode.trim() !== "");
+  const submitOptions = useMemo(() => {
+    const manual = splitManualOptions(manualOptions);
+    return manualActive && manual.length > 0 ? manual : selectedValues;
+  }, [manualActive, manualOptions, selectedValues]);
+  const effectiveFqn = manualActive ? manualFqn.trim() : "";
+
   const price = useMemo(() => {
     if (!server) return null;
-    return computePriceFromOptions(server.planCode, selectedValues, catalogIdx);
-  }, [server, selectedValues, catalogIdx]);
+    return computePriceFromOptions(server.planCode, submitOptions, catalogIdx);
+  }, [server, submitOptions, catalogIdx]);
 
   useEffect(() => {
     if (!open) return;
@@ -137,6 +149,9 @@ export function QuickOrderDialog({ open, onOpenChange, initialPlanCode }: QuickO
     setPicked({});
     setAutoPay(false);
     setCoupon("");
+    setManualOpen(false);
+    setManualFqn("");
+    setManualOptions("");
     setAccountId(defaultAcc?.id || "");
   }, [open, initialPlanCode]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -201,7 +216,8 @@ export function QuickOrderDialog({ open, onOpenChange, initialPlanCode }: QuickO
       datacenters: selectedDCs,
       quantity: qty,
       retryInterval: Number(retryInterval) || cfgDefault,
-      options: selectedValues,
+      options: submitOptions,
+      fqn: effectiveFqn || undefined,
       autoPay,
       force: isCustomPlan,
       coupon: coupon.trim() || undefined,
@@ -221,7 +237,8 @@ export function QuickOrderDialog({ open, onOpenChange, initialPlanCode }: QuickO
           datacenters: selectedDCs,
           quantity: qty,
           retryInterval: Number(retryInterval) || cfgDefault,
-          options: selectedValues,
+          options: submitOptions,
+          fqn: effectiveFqn || undefined,
           autoPay,
           force: true,
           coupon: coupon.trim() || undefined,
@@ -309,7 +326,7 @@ export function QuickOrderDialog({ open, onOpenChange, initialPlanCode }: QuickO
                 <div>
                   <div className="text-[11px] text-muted-foreground">
                     月费 · {subsidiary}
-                    {selectedValues.length > 0 ? "（随当前选配）" : "（默认配置）"}
+                    {submitOptions.length > 0 ? "（随当前选配）" : "（默认配置）"}
                   </div>
                   <div className="mt-0.5 text-2xl font-bold tabular-nums">
                     {price ? (
@@ -354,6 +371,18 @@ export function QuickOrderDialog({ open, onOpenChange, initialPlanCode }: QuickO
                   onPick={(value) => setPicked((p) => ({ ...p, [g]: value }))}
                 />
               ))}
+
+            <ManualConfigSection
+              open={manualOpen}
+              onOpenChange={setManualOpen}
+              forced={!server && planCode.trim() !== ""}
+              planCode={planCode}
+              onPlanCodeChange={setPlanCode}
+              fqn={manualFqn}
+              onFqnChange={setManualFqn}
+              options={manualOptions}
+              onOptionsChange={setManualOptions}
+            />
 
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div>
@@ -408,7 +437,7 @@ export function QuickOrderDialog({ open, onOpenChange, initialPlanCode }: QuickO
           <div className="relative z-10 shrink-0 space-y-2 border-t border-border/60 bg-card px-4 py-3 sm:px-6">
             <div className="text-[12px] text-muted-foreground">
               {selectedDCs.length > 0
-                ? `将创建 ${totalTasks} 个任务（${selectedDCs.length} DC × ${qty}）${selectedValues.length > 0 ? ` · ${selectedValues.length} 项选配` : ""
+                ? `将创建 ${totalTasks} 个任务（${selectedDCs.length} DC × ${qty}）${submitOptions.length > 0 ? ` · ${submitOptions.length} 项选配` : ""
                 }`
                 : "请选数据中心后再创建抢购任务"}
             </div>

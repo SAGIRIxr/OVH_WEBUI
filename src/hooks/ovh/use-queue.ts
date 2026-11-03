@@ -33,6 +33,8 @@ export interface QueueItem {
   configSniperTaskId?: string;
   coupon?: string;
   preorder?: boolean;
+  /** 手填锁定的整套硬件组合 */
+  fqn?: string;
   /** 已下单(completed)任务对应的 OVH 订单号,由 GET /api/queue 从购买历史补上 */
   orderId?: string;
 }
@@ -98,6 +100,8 @@ export function useCreateQueueItem() {
       force?: boolean;
       preorder?: boolean;
       coupon?: string;
+      /** 手填整套硬件组合(<planCode>.<段>...),只在这条 FQN 有货时下单 */
+      fqn?: string;
     }) => {
       const dcs = payload.datacenters;
       // 上界以前完全没有:填 9999 × 5 个机房 = 近 5 万次串行 POST。
@@ -133,6 +137,7 @@ export function useCreateQueueItem() {
               force: payload.force ?? false,
               preorder: payload.preorder ?? false,
               coupon: payload.coupon?.trim() || undefined,
+              fqn: payload.fqn?.trim() || undefined,
             });
             success++;
           } catch (e: any) {

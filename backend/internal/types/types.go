@@ -174,6 +174,9 @@ type QueueItem struct {
 	AutoPay            bool   `json:"autoPay,omitempty"`
 	Coupon             string `json:"coupon,omitempty"`
 	Preorder           bool   `json:"preorder,omitempty"` // 本地预订:等账户销售目录上架后再尝试下单
+	// FQN 用户手填的整套硬件组合(<planCode>.<addon段>...)。非空时只认库存里这一条 FQN,
+	// 其它组合有货也按无货继续等,不会退而求其次下到别的配置
+	FQN string `json:"fqn,omitempty"`
 	ConfigSniperTaskID string `json:"configSniperTaskId,omitempty"`
 	TelegramChatID     string `json:"telegramChatId,omitempty"`
 	TelegramMessageID  int64  `json:"telegramMessageId,omitempty"`

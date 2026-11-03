@@ -75,6 +75,11 @@ export function QueueRow({ item, onToggle, onDelete, onEdit }: QueueRowProps) {
                 {describeOptionCodes(item.options)}
               </Chip>
             )}
+            {item.fqn && (
+              <Chip tone="default" title={`只在这套组合有货时下单\n${item.fqn}`}>
+                FQN {item.fqn.split(".").slice(1).join(" · ")}
+              </Chip>
+            )}
           </div>
           <div className="text-[11px] text-muted-foreground flex items-center gap-2 flex-wrap">
             <Clock className="w-3.5 h-3.5 text-muted-foreground/80" />

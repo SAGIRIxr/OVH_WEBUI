@@ -17,6 +17,7 @@ import { AccountSelect } from "@/components/common/AccountSelect";
 import { DatacenterPicker } from "@/components/common/DatacenterPicker";
 import { PlanCodeCombobox } from "@/components/common/PlanCodeCombobox";
 import { OptionGroupSection } from "@/components/common/OptionGroupSection";
+import { ManualConfigSection, splitManualOptions } from "@/components/common/ManualConfigSection";
 import { useServers } from "@/hooks/use-servers";
 import { useCreateQueueItem } from "@/hooks/use-queue";
 import { useSettings, RETRY_INTERVAL } from "@/hooks/use-settings";
@@ -77,7 +78,10 @@ export function CreateQueueDialog({
   }, [cfgDefault]);
 
   const [picked, setPicked] = useState<Partial<Record<OptionGroupKey, string>>>({});
+  // extraInput = 手动填写区的 OPTIONS 文本;manualFqn = 手动填写区的 FQN
   const [extraInput, setExtraInput] = useState("");
+  const [manualOpen, setManualOpen] = useState(false);
+  const [manualFqn, setManualFqn] = useState("");
   const [autoPay, setAutoPay] = useState(false);
 
   useEffect(() => {
@@ -119,8 +123,8 @@ export function CreateQueueDialog({
       const leftover = wantedList.filter((v) => !consumed.has(v));
       setExtraInput(leftover.join(", "));
     } else {
+      // 不清手动填写区:粘贴 PLANCODE 会先换型号再填 OPTIONS,这里清掉会把刚粘的内容吃掉
       setPicked({});
-      setExtraInput("");
     }
   }, [planCode, initialOptions, initialPlanCode, matchedServer]);
 
@@ -133,15 +137,17 @@ export function CreateQueueDialog({
     [matchedServer]
   );
 
+  // 目录里没有的型号只能手填;目录里有的机型展开手动区并填了 OPTIONS 时覆盖 chip 选择
+  const manualActive = manualOpen || !matchedServer;
   const parsedOptions = useMemo(() => {
+    const manual = splitManualOptions(extraInput);
+    if (manualActive && manual.length > 0) return manual;
     if (matchedServer) {
       return Object.values(picked).filter(Boolean) as string[];
     }
-    return extraInput
-      .split(",")
-      .map((v) => v.trim())
-      .filter(Boolean);
-  }, [matchedServer, picked, extraInput]);
+    return [];
+  }, [matchedServer, picked, extraInput, manualActive]);
+  const effectiveFqn = manualActive ? manualFqn.trim() : "";
 
   const variants = matchedServer ? variantIndex[matchedServer.planCode] : undefined;
   const optionHasStock = (groupKey: OptionGroupKey, value: string): boolean => {
@@ -169,6 +175,8 @@ export function CreateQueueDialog({
     setRetryInterval(String(cfgDefault));
     setPicked({});
     setExtraInput("");
+    setManualOpen(false);
+    setManualFqn("");
     setAutoPay(false);
     setCoupon("");
     prevPlanCodeRef.current = "";
@@ -207,6 +215,7 @@ export function CreateQueueDialog({
       coupon: coupon.trim() || undefined,
       preorder: !!matchedServer?.prerelease,
       force: isCustom,
+      fqn: effectiveFqn || undefined,
     });
     if (result.success > 0) {
       toast.success(`已创建 ${result.success}/${result.total} 个抢购任务`);
@@ -228,6 +237,7 @@ export function CreateQueueDialog({
           coupon: coupon.trim() || undefined,
           preorder: !!matchedServer?.prerelease,
           force: true,
+          fqn: effectiveFqn || undefined,
         });
         if (forceResult.success > 0) {
           toast.success(`已强制创建 ${forceResult.success}/${forceResult.total} 个抢购任务`);
@@ -336,10 +346,10 @@ export function CreateQueueDialog({
               <span className="text-muted-foreground ml-2 font-normal">
                 {grouped
                   ? "（点击 chip 选择,留空走 OVH 默认下单）"
-                  : "（catalog 里没找到这个型号,需要手填 addon planCode）"}
+                  : "（目录里没有这个型号，在下面手动填写 FQN / OPTIONS）"}
               </span>
             </label>
-            {grouped ? (
+            {grouped && (
               <div className="space-y-4">
                 {(["cpu", "memory", "systemStorage", "storage", "bandwidth", "vrack", "other"] as OptionGroupKey[])
                   .filter((g) => grouped[g].length > 0)
@@ -360,16 +370,28 @@ export function CreateQueueDialog({
                     />
                   ))}
               </div>
-            ) : (
-              <Input
-                placeholder="addon planCode,逗号分隔。例如:ram-64g-ecc-2400, softraid-2x450nvme-24sk50"
-                value={extraInput}
-                onChange={(e) => setExtraInput(e.target.value)}
-              />
             )}
+            <div className={grouped ? "mt-4" : undefined}>
+              <ManualConfigSection
+                open={manualOpen}
+                onOpenChange={setManualOpen}
+                forced={!grouped}
+                planCode={planCode}
+                onPlanCodeChange={setPlanCode}
+                fqn={manualFqn}
+                onFqnChange={setManualFqn}
+                options={extraInput}
+                onOptionsChange={setExtraInput}
+              />
+            </div>
 
-            {parsedOptions.length > 0 && (
+            {(parsedOptions.length > 0 || effectiveFqn) && (
               <div className="flex flex-wrap gap-1.5 mt-3 pt-3 border-t border-border">
+                {effectiveFqn && (
+                  <Chip tone="default" title="锁定的 FQN">
+                    FQN {effectiveFqn}
+                  </Chip>
+                )}
                 <span className="text-[11px] text-muted-foreground">已选:</span>
                 {parsedOptions.map((opt, i) => (
                   <Chip key={`${opt}-${i}`} tone="default" title={opt}>
