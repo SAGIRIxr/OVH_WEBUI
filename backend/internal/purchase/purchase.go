@@ -235,7 +235,7 @@ func PurchaseServer(ctx context.Context, state *app.State, item *types.QueueItem
 	// - 用户显式指定了 options → 直接用（fail-fast 由后面的 eco/options 处理）
 	// - 用户没指定 → 从可用 FQN 推断 addon planCode，确保订单走"实际有货的那套配置"
 	effectiveOptions := item.Options
-	if len(effectiveOptions) == 0 && availableFQN != "" {
+	if (len(effectiveOptions) == 0 || item.Preorder) && availableFQN != "" {
 		parts := strings.Split(availableFQN, ".")
 		if len(parts) > 1 {
 			// 第一段是 base planCode，其余是 addon 段。注意这些段是"短前缀"
@@ -489,6 +489,9 @@ func PurchaseServer(ctx context.Context, state *app.State, item *types.QueueItem
 				// planCode(第①档直接命中);用户没选配置时 filtered 是从 FQN 推来的短前缀,
 				// 精确匹配永远打不中,必须靠前缀/标准化档兜底,否则会被误判成"选项不存在"整单取消。
 				matchedOpt, matchedPC, tier := catalog.MatchEcoOption(availableEcoOpts, wanted)
+				if item.Preorder {
+					matchedOpt, matchedPC, tier = catalog.MatchPreorderEcoOption(availableEcoOpts, wanted)
+				}
 				if matchedOpt == nil {
 					missing = append(missing, wanted)
 					continue
@@ -512,6 +515,10 @@ func PurchaseServer(ctx context.Context, state *app.State, item *types.QueueItem
 				})
 			}
 			if len(missing) > 0 {
+				if item.Preorder {
+					state.Logger.Info(fmt.Sprintf("预订任务 %s 等待所选硬件配置开放: %v", item.ID, missing), "purchase")
+					return Outcome{WaitingForCatalog: true}
+				}
 				errMsg := fmt.Sprintf("用户请求的硬件选项 %v 未在 OVH 可用 Eco 选项中找到（已取消下单避免下到错误配置）", missing)
 				state.Logger.Error(errMsg, "purchase")
 				recordFailure(state, item, errMsg)

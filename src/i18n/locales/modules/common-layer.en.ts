@@ -276,6 +276,8 @@ const pack: CommonLayerPack = {
       clear: "Clear",
       searchPlaceholder: "Search planCode / model / CPU / memory...",
       noMatch: "No matching servers",
+      useCustom: "Use custom planCode",
+      useCustomHint: "Not in the catalog; queued in force mode",
     },
     optionGroup: {
       group: {
